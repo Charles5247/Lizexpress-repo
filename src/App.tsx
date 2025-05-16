@@ -1,4 +1,4 @@
-import React from 'react';
+//import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import Header from './components/Header';
@@ -12,10 +12,10 @@ import ItemListing from './components/listing/ItemListing';
 import Browse from './pages/Browse';
 import SuccessMessage from './components/auth/SuccessMessage';
 import Terms from './pages/Terms';
-import Dashboard from './pages/Dashboard';
-import ItemDetails from './pages/ItemDetails';
-import Chat from './pages/Chat';
-import ListingCharge from './pages/ListingCharge';
+//import Dashboard from './pages/Dashboard';
+//import ItemDetails from './pages/ItemDetails';
+//import Chat from './pages/Chat';
+//import ListingCharge from './pages/ListingCharge';
 
 function App() {
   return (
@@ -34,10 +34,10 @@ function App() {
               <Route path="/browse" element={<Browse />} />
               <Route path="/success" element={<SuccessMessage />} />
               <Route path="/terms" element={<Terms />} />
-              <Route path="/dashboard/*" element={<Dashboard />} />
-              <Route path="/items/:id" element={<ItemDetails />} />
+              {/* <Route path="/dashboard/*" element={<Dashboard />} /> */}
+              {/* <Route path="/items/:id" element={<ItemDetails />} />
               <Route path="/chat/:id" element={<Chat />} />
-              <Route path="/listing-charge" element={<ListingCharge />} />
+              <Route path="/listing-charge" element={<ListingCharge />} /> */}
             </Routes>
           </main>
           <Footer />
