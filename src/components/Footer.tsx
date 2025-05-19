@@ -45,7 +45,7 @@ const Footer: React.FC = () => {
         
         {/* Copyright */}
         <div className="mt-8 text-sm text-center md:text-left">
-          <p>VISION Studios | UExpress© 2023</p>
+          <p>VISION Studios | LizExpress© 2023</p>
         </div>
       </div>
     </footer>
