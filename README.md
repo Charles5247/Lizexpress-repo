@@ -1,8 +1,12 @@
 
 # LizExpress
 
-**LizExpress** is a modern item-swapping platform where users can list personal items, interact through chats, and manage their favorites—all while maintaining privacy and secure access. The app is backed by Supabase with row-level security for robust access control.
-
+**LizExpress Ltd** is pioneering a modern barter system platform that allows users
+to trade goods and services online without needing cash transactions. This
+innovative approach aims to create a sustainable and community-driven
+marketplace, fostering economic resilience and resource sharing. The platform is
+designed to simplify barter transactions, making it accessible and efficient for
+users to exchange value seamlessly.
 ---
 
 ## 🚀 Current Status
@@ -23,15 +27,15 @@
   - Separate threads and messages table
 
 - **Favorites**
-  - Wishlist functionality for users to favorite items
+  - Wishlist functionality for users to favourite items
 
 - **Notifications**
   - System and personal notifications with read/unread tracking
 
 - **Security**
-  - Row-Level Security (RLS) enabled for all tables
+  - Row-Level Security (RLS) is enabled for all tables
   - Policies for authenticated user access and actions
-  - Indexes created for performance optimization
+  - Indexes created for performance optimisation
 
 ---
 
@@ -47,7 +51,7 @@ Tables:
 - `items`
 - `chats`
 - `messages`
-- `favorites`
+- `favourites`
 - `notifications`
 
 Security: Enabled RLS with defined access policies per table.
