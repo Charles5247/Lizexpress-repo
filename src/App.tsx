@@ -50,7 +50,7 @@ function App() {
     <AuthProvider>
       <Router>
         <div className="min-h-screen flex flex-col">
-          <Header />
+          <Header user={useAuth().user} />
           <main className="flex-grow">
             <Routes>
               <Route path="/" element={<LandingPage />} />
