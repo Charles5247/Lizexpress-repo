@@ -5,7 +5,7 @@ const Footer: React.FC = () => {
   const { user } = useAuth();
 
   return (
-    <footer className="bg-black text-white py-8">
+    <footer className="bg-[#4A0E67] text-white py-8">
       <div className="container mx-auto px-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {/* Navigation Links */}
@@ -51,7 +51,8 @@ const Footer: React.FC = () => {
         
         {/* Copyright */}
         <div className="mt-8 text-sm text-center md:text-left">
-          <p>VISION Studios | UExpress© 2023</p>
+          <p>Copyright LizExpress 2023</p>
+          <p>Website by ViSiON Studios</p>
         </div>
       </div>
     </footer>

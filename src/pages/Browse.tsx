@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Search } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { Search, Heart, MessageCircle } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import type { Item } from '../lib/supabase';
@@ -8,6 +8,7 @@ import type { Item } from '../lib/supabase';
 const Browse: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [condition, setCondition] = useState<string>('');
   const [items, setItems] = useState<Item[]>([]);
@@ -15,13 +16,26 @@ const Browse: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [favorites, setFavorites] = useState<Set<string>>(new Set());
 
   const categories = [
-    'Electronics', 'Furniture', 'Books/Novels', 'Clothing', 'Food',
-    'Gaming', 'Real Estate', 'Automobiles', 'Others'
+    'Electronics', 'Furniture', 'Computer', 'Phones', 'Clothing',
+    'Cosmetics', 'Automobiles', 'Shoes', 'Jewelry', 'Real Estate', 'Others'
   ];
 
   useEffect(() => {
+    // Get search params from URL
+    const urlSearch = searchParams.get('search');
+    const urlCategory = searchParams.get('category');
+    
+    if (urlSearch) {
+      setSearchQuery(urlSearch);
+    }
+    
+    if (urlCategory && urlCategory !== 'all') {
+      setSelectedCategories([urlCategory]);
+    }
+
     // Get user's location
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -38,22 +52,22 @@ const Browse: React.FC = () => {
     }
 
     fetchItems();
-  }, [selectedCategories, condition, searchQuery]);
+    if (user) {
+      fetchFavorites();
+    }
+  }, [selectedCategories, condition, searchQuery, user, searchParams]);
 
   const fetchItems = async () => {
     try {
       setError(null);
       setLoading(true);
 
-      // Test the connection first
-      const { error: connectionError } = await supabase.from('items').select('count');
-      if (connectionError) {
-        throw new Error('Failed to connect to the database');
-      }
-
       let query = supabase
         .from('items')
-        .select('*, users!inner(*)')
+        .select(`
+          *,
+          users!inner(id, full_name, avatar_url)
+        `)
         .eq('status', 'active');
 
       if (selectedCategories.length > 0) {
@@ -65,10 +79,10 @@ const Browse: React.FC = () => {
       }
 
       if (searchQuery) {
-        query = query.or(`name.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%`);
+        query = query.or(`name.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%,swap_for.ilike.%${searchQuery}%,category.ilike.%${searchQuery}%`);
       }
 
-      const { data, error } = await query;
+      const { data, error } = await query.order('created_at', { ascending: false });
 
       if (error) {
         throw error;
@@ -90,6 +104,23 @@ const Browse: React.FC = () => {
       setError(err instanceof Error ? err.message : 'Failed to fetch items');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchFavorites = async () => {
+    if (!user) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('favorites')
+        .select('item_id')
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      setFavorites(new Set(data.map(fav => fav.item_id)));
+    } catch (error) {
+      console.error('Error fetching favorites:', error);
     }
   };
 
@@ -115,9 +146,64 @@ const Browse: React.FC = () => {
     return value * Math.PI / 180;
   };
 
+  const toggleFavorite = async (itemId: string) => {
+    if (!user) {
+      navigate('/signin');
+      return;
+    }
+
+    try {
+      if (favorites.has(itemId)) {
+        // Remove from favorites
+        const { error } = await supabase
+          .from('favorites')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('item_id', itemId);
+
+        if (error) throw error;
+
+        setFavorites(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(itemId);
+          return newSet;
+        });
+      } else {
+        // Add to favorites
+        const { error } = await supabase
+          .from('favorites')
+          .insert({
+            user_id: user.id,
+            item_id: itemId
+          });
+
+        if (error) throw error;
+
+        setFavorites(prev => new Set([...prev, itemId]));
+
+        // Create notification
+        await supabase
+          .from('notifications')
+          .insert({
+            user_id: user.id,
+            type: 'favorite_added',
+            title: 'Item Added to Favorites',
+            content: `You've added an item to your favorites list.`
+          });
+      }
+    } catch (error) {
+      console.error('Error toggling favorite:', error);
+    }
+  };
+
   const handleStartChat = async (itemId: string, ownerId: string) => {
     if (!user) {
       navigate('/signin');
+      return;
+    }
+
+    if (user.id === ownerId) {
+      alert("You can't chat with yourself!");
       return;
     }
 
@@ -154,11 +240,34 @@ const Browse: React.FC = () => {
 
       if (error) throw error;
 
+      // Create notifications for both users
+      await supabase
+        .from('notifications')
+        .insert([
+          {
+            user_id: user.id,
+            type: 'chat_started',
+            title: 'Chat Started',
+            content: 'You started a new chat conversation.'
+          },
+          {
+            user_id: ownerId,
+            type: 'new_chat',
+            title: 'New Chat Request',
+            content: 'Someone is interested in your item and started a chat.'
+          }
+        ]);
+
       navigate(`/chat/${newChat.id}`);
     } catch (err) {
       console.error('Error starting chat:', err);
       setError(err instanceof Error ? err.message : 'Failed to start chat');
     }
+  };
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    fetchItems();
   };
 
   return (
@@ -170,7 +279,7 @@ const Browse: React.FC = () => {
             <h2 className="text-2xl font-bold text-white mb-4">List Your Item Here</h2>
             <button 
               onClick={() => navigate('/list-item')}
-              className="bg-[#4A0E67] text-white px-6 py-2 rounded-full"
+              className="bg-[#4A0E67] text-white px-6 py-2 rounded-full hover:bg-[#3a0b50] transition-colors"
             >
               List an Item
             </button>
@@ -203,6 +312,17 @@ const Browse: React.FC = () => {
             <div>
               <h3 className="text-xl font-bold text-white mb-4">Condition</h3>
               <div className="space-y-2">
+                <label className="flex items-center text-white">
+                  <input
+                    type="radio"
+                    name="condition"
+                    value=""
+                    checked={condition === ''}
+                    onChange={(e) => setCondition(e.target.value)}
+                    className="mr-2"
+                  />
+                  All Conditions
+                </label>
                 <label className="flex items-center text-white">
                   <input
                     type="radio"
@@ -244,16 +364,19 @@ const Browse: React.FC = () => {
         {/* Main Content */}
         <div className="flex-1 p-6">
           <div className="flex justify-between items-center mb-8">
-            <div className="relative w-64">
+            <form onSubmit={handleSearchSubmit} className="relative w-64">
               <input
                 type="text"
-                placeholder="Search..."
+                placeholder="Search items..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 rounded-full border focus:outline-none focus:border-[#4A0E67]"
               />
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-            </div>
+            </form>
+            <p className="text-gray-600">
+              {items.length} items found
+            </p>
           </div>
 
           {error && (
@@ -270,25 +393,61 @@ const Browse: React.FC = () => {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {items.map((item) => (
-                <div key={item.id} className="bg-white rounded-lg shadow-md overflow-hidden">
-                  <img 
-                    src={item.images[0]} 
-                    alt={item.name} 
-                    className="w-full h-48 object-cover"
-                  />
-                  <div className="p-4">
-                    <h3 className="font-semibold text-lg mb-2">{item.name}</h3>
-                    <p className="text-sm text-gray-600">Swap for: {item.swap_for}</p>
-                    <p className="text-sm text-gray-500">{item.location}</p>
+                <div key={item.id} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
+                  <div className="relative">
+                    <img 
+                      src={item.images[0]} 
+                      alt={item.name} 
+                      className="w-full h-48 object-cover cursor-pointer"
+                      onClick={() => navigate(`/items/${item.id}`)}
+                    />
                     <button
-                      onClick={() => handleStartChat(item.id, item.user_id)}
-                      className="mt-4 w-full bg-[#4A0E67] text-white py-2 rounded hover:bg-[#3a0b50] transition-colors"
+                      onClick={() => toggleFavorite(item.id)}
+                      className={`absolute top-2 right-2 p-2 rounded-full ${
+                        favorites.has(item.id) 
+                          ? 'bg-red-500 text-white' 
+                          : 'bg-white text-gray-600 hover:bg-gray-100'
+                      } transition-colors`}
                     >
-                      Start Chat
+                      <Heart size={16} fill={favorites.has(item.id) ? 'currentColor' : 'none'} />
                     </button>
+                  </div>
+                  <div className="p-4">
+                    <h3 className="font-semibold text-lg mb-2 cursor-pointer hover:text-[#4A0E67]" 
+                        onClick={() => navigate(`/items/${item.id}`)}>
+                      {item.name}
+                    </h3>
+                    <p className="text-sm text-gray-600 mb-1">Condition: {item.condition}</p>
+                    <p className="text-sm text-gray-600 mb-2">Swap for: {item.swap_for}</p>
+                    <p className="text-sm text-gray-500 mb-3">
+                      By: {item.users?.full_name || 'Anonymous'}
+                    </p>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => handleStartChat(item.id, item.user_id)}
+                        className="flex-1 bg-[#4A0E67] text-white py-2 px-3 rounded text-sm hover:bg-[#3a0b50] transition-colors flex items-center justify-center"
+                      >
+                        <MessageCircle size={16} className="mr-1" />
+                        Chat
+                      </button>
+                      <button
+                        onClick={() => navigate(`/items/${item.id}`)}
+                        className="bg-[#F7941D] text-white py-2 px-3 rounded text-sm hover:bg-[#e68a1c] transition-colors"
+                      >
+                        View
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
+              
+              {items.length === 0 && !loading && (
+                <div className="col-span-full text-center py-12">
+                  <Search size={48} className="mx-auto text-gray-400 mb-4" />
+                  <p className="text-gray-500 text-lg">No items found</p>
+                  <p className="text-gray-400">Try adjusting your search criteria</p>
+                </div>
+              )}
             </div>
           )}
         </div>

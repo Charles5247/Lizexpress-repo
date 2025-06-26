@@ -27,8 +27,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .eq('id', userId)
         .single();
 
-      if (error) throw error;
-      setProfile(data);
+      if (error) {
+        if (error.code === 'PGRST116') {
+          // No profile found, create one
+          const { data: newProfile, error: createError } = await supabase
+            .from('users')
+            .insert({
+              id: userId,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            })
+            .select()
+            .single();
+
+          if (createError) {
+            console.error('Error creating profile:', createError);
+            setProfile(null);
+          } else {
+            setProfile(newProfile);
+          }
+          return;
+        }
+        throw error;
+      }
+      
+      setProfile(data || null);
     } catch (error) {
       console.error('Error fetching profile:', error);
       setProfile(null);
@@ -59,8 +82,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     setupAuth();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (mounted) {
+        console.log('Auth state changed:', event, session?.user?.email);
+        
         setUser(session?.user ?? null);
         if (session?.user) {
           await fetchProfile(session.user.id);
@@ -89,14 +114,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signUp = async (email: string, password: string) => {
     try {
-      const { error, data } = await supabase.auth.signUp({ email, password });
+      const { error, data } = await supabase.auth.signUp({ 
+        email, 
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/email-confirmation`
+        }
+      });
       if (error) throw error;
 
-      if (data.user) {
-        const { error: profileError } = await supabase.from('users').insert([
-          { id: data.user.id }
-        ]);
-        if (profileError) throw profileError;
+      if (data.user && !data.session) {
+        throw new Error('Please check your email for a confirmation link before signing in.');
       }
     } catch (error) {
       console.error('Error signing up:', error);
@@ -120,10 +148,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const { error } = await supabase
         .from('users')
-        .update(data)
-        .eq('id', user.id);
+        .upsert({ 
+          id: user.id, 
+          ...data,
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'id'
+        });
 
       if (error) throw error;
+
       await fetchProfile(user.id);
     } catch (error) {
       console.error('Error updating profile:', error);

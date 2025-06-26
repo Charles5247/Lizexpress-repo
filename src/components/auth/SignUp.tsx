@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import ReCAPTCHA from 'react-google-recaptcha';
 
 const SignUp: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -9,6 +10,8 @@ const SignUp: React.FC = () => {
   const [agreeToTerms, setAgreeToTerms] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [captchaValue, setCaptchaValue] = useState<string | null>(null);
   const navigate = useNavigate();
   const { signUp } = useAuth();
 
@@ -25,18 +28,60 @@ const SignUp: React.FC = () => {
       return;
     }
 
+    if (!captchaValue) {
+      setError('Please complete the reCAPTCHA verification');
+      return;
+    }
+
     try {
       setError('');
       setLoading(true);
       await signUp(email, password);
-      navigate('/personal-data');
-    } catch (err) {
-      setError('Failed to create an account');
+      setSuccess(true);
+    } catch (err: any) {
       console.error(err);
+      if (err.message && err.message.includes('check your email')) {
+        setSuccess(true);
+      } else {
+        setError(err.message || 'Failed to create an account');
+      }
     } finally {
       setLoading(false);
     }
   };
+
+  if (success) {
+    return (
+      <div className="min-h-screen bg-[#4A0E67] flex items-center justify-center p-4">
+        <div className="bg-white rounded-lg shadow-xl p-8 max-w-md w-full text-center">
+          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg className="w-8 h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold text-[#4A0E67] mb-4">Check Your Email!</h2>
+          <p className="text-gray-600 mb-6">
+            We've sent a confirmation link to <strong>{email}</strong>. 
+            Please click the link in your email to activate your account.
+          </p>
+          <div className="space-y-3">
+            <button
+              onClick={() => navigate('/signin')}
+              className="w-full bg-[#4A0E67] text-white py-2 px-4 rounded hover:bg-[#3a0b50] transition-colors"
+            >
+              Go to Sign In
+            </button>
+            <button
+              onClick={() => window.location.reload()}
+              className="w-full bg-gray-100 text-gray-700 py-2 px-4 rounded hover:bg-gray-200 transition-colors"
+            >
+              Try Again
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#4A0E67] flex items-center justify-center p-4">
@@ -73,6 +118,7 @@ const SignUp: React.FC = () => {
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full p-3 rounded border focus:outline-none focus:border-[#4A0E67]"
                 required
+                minLength={6}
               />
             </div>
             
@@ -84,6 +130,14 @@ const SignUp: React.FC = () => {
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 className="w-full p-3 rounded border focus:outline-none focus:border-[#4A0E67]"
                 required
+              />
+            </div>
+
+            {/* reCAPTCHA */}
+            <div className="flex justify-center">
+              <ReCAPTCHA
+                sitekey="6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI" // Test key - replace with your actual key
+                onChange={setCaptchaValue}
               />
             </div>
             
@@ -102,7 +156,7 @@ const SignUp: React.FC = () => {
             
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !captchaValue}
               className="w-full bg-[#4A0E67] text-white py-3 rounded font-bold hover:bg-[#3a0b50] transition-colors disabled:opacity-50"
             >
               {loading ? 'Creating Account...' : 'SIGN UP'}

@@ -1,26 +1,41 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import ReCAPTCHA from 'react-google-recaptcha';
 
 const SignIn: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [captchaValue, setCaptchaValue] = useState<string | null>(null);
   const navigate = useNavigate();
   const { signIn } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (!captchaValue) {
+      setError('Please complete the reCAPTCHA verification');
+      return;
+    }
+    
     try {
       setError('');
       setLoading(true);
       await signIn(email, password);
       navigate('/dashboard');
-    } catch (err) {
-      setError('Failed to sign in');
+    } catch (err: any) {
       console.error(err);
+      
+      // Check for specific error messages
+      if (err.message && err.message.includes('Email not confirmed')) {
+        setError('Your email is not confirmed. Please check your inbox for a verification link.');
+      } else if (err.message && err.message.includes('email_not_confirmed')) {
+        setError('Your email is not confirmed. Please check your inbox for a verification link.');
+      } else {
+        setError('Failed to sign in. Please check your credentials.');
+      }
     } finally {
       setLoading(false);
     }
@@ -63,10 +78,18 @@ const SignIn: React.FC = () => {
                 required
               />
             </div>
+
+            {/* reCAPTCHA */}
+            <div className="flex justify-center">
+              <ReCAPTCHA
+                sitekey="6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI" // Test key - replace with your actual key
+                onChange={setCaptchaValue}
+              />
+            </div>
             
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !captchaValue}
               className="w-full bg-[#4A0E67] text-white py-3 rounded font-bold hover:bg-[#3a0b50] transition-colors disabled:opacity-50"
             >
               {loading ? 'Signing In...' : 'LOGIN'}
