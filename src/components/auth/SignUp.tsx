@@ -62,8 +62,13 @@ const SignUp: React.FC = () => {
           <h2 className="text-2xl font-bold text-[#4A0E67] mb-4">Check Your Email!</h2>
           <p className="text-gray-600 mb-6">
             We've sent a confirmation link to <strong>{email}</strong>. 
-            Please click the link in your email to activate your account.
+            Please click the link in your email to activate your account and complete your registration.
           </p>
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <p className="text-sm text-blue-800">
+              <strong>Important:</strong> After clicking the verification link, you'll be redirected to LizExpress where you can sign in with your credentials.
+            </p>
+          </div>
           <div className="space-y-3">
             <button
               onClick={() => navigate('/signin')}
